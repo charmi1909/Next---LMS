@@ -16,14 +16,46 @@ export default function LibrarianDashboardPage() {
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
   const [showAddBook, setShowAddBook] = useState(false);
   const [showRegisterPatron, setShowRegisterPatron] = useState(false);
 
+  // ✅ Username handling (clean + safe)
+  const [userName, setUserName] = useState('Librarian');
+  const [userLoading, setUserLoading] = useState(true);
+
+  // ✅ Fetch user
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const res = await fetch('/api/auth/me', {
+          credentials: 'include',
+        });
+
+        const data = await res.json();
+
+        if (data.success && data.user?.name) {
+          setUserName(data.user.name);
+        } else {
+          setUserName('Librarian');
+        }
+      } catch {
+        setUserName('Librarian');
+      } finally {
+        setUserLoading(false);
+      }
+    };
+
+    fetchUser();
+  }, []);
+
+  // ✅ Fetch stats
   useEffect(() => {
     const fetchStats = async () => {
       try {
         const res = await fetch('/api/librarian/stats');
         if (!res.ok) throw new Error('Failed to fetch stats');
+
         const data = await res.json();
         setStats(data);
       } catch (err: any) {
@@ -36,12 +68,16 @@ export default function LibrarianDashboardPage() {
     fetchStats();
   }, []);
 
+  // ✅ Fetch notifications
   useEffect(() => {
     const fetchUnreadNotifications = async () => {
       try {
-        const res = await fetch('/api/librarian/notifications?unreadOnly=true');
+        const res = await fetch(
+          '/api/librarian/notifications?unreadOnly=true'
+        );
         if (!res.ok) return;
-        const data = (await res.json()) as { unreadCount?: number };
+
+        const data = await res.json();
         setUnreadNotifications(data.unreadCount || 0);
       } catch {
         setUnreadNotifications(0);
@@ -58,20 +94,31 @@ export default function LibrarianDashboardPage() {
   };
 
   if (loading) {
-    return <div className="p-6 text-center text-gray-600">Loading dashboard...</div>;
+    return (
+      <div className="p-6 text-center text-gray-600">
+        Loading dashboard...
+      </div>
+    );
   }
 
   if (error) {
-    return <div className="p-6 text-center text-red-600">Error: {error}</div>;
+    return (
+      <div className="p-6 text-center text-red-600">Error: {error}</div>
+    );
   }
 
   return (
     <div className="librarian-dashboard-page">
-      <h1 className="dashboard-title">Welcome, Librarian!</h1>
+      {/* ✅ Welcome message */}
+      <h1 className="dashboard-title">
+        {userLoading ? 'Welcome...' : `Welcome, ${userName}!`}
+      </h1>
+
       <p className="dashboard-subtitle">
         Use the sidebar to navigate through the library management system.
       </p>
 
+      {/* Stats */}
       <div className="dashboard-stats-grid">
         <div className="stat-card">
           <h2 className="stat-card-title">Total Books</h2>
@@ -82,7 +129,9 @@ export default function LibrarianDashboardPage() {
         <div className="stat-card on-loan">
           <h2 className="stat-card-title">Books On Loan</h2>
           <p className="stat-card-value">{stats?.borrowedBooks}</p>
-          <p className="stat-card-description">Currently borrowed by patrons</p>
+          <p className="stat-card-description">
+            Currently borrowed by patrons
+          </p>
         </div>
 
         <div className="stat-card overdue">
@@ -92,8 +141,10 @@ export default function LibrarianDashboardPage() {
         </div>
       </div>
 
+      {/* Quick actions */}
       <div className="quick-actions-section">
         <h2 className="quick-actions-title">Quick Actions</h2>
+
         <div className="quick-actions-buttons">
           <button
             className="action-button add-book"
@@ -109,12 +160,16 @@ export default function LibrarianDashboardPage() {
             Register New Patron
           </button>
 
-          <Link href="/dashboard/librarian/notifications" className="action-button">
+          <Link
+            href="/dashboard/librarian/notifications"
+            className="action-button"
+          >
             Notifications ({unreadNotifications} unread)
           </Link>
         </div>
       </div>
 
+      {/* Modals */}
       <AddBookModal
         open={showAddBook}
         onClose={() => setShowAddBook(false)}
@@ -122,7 +177,9 @@ export default function LibrarianDashboardPage() {
       />
 
       {showRegisterPatron && (
-        <RegisterPatronModal onClose={() => setShowRegisterPatron(false)} />
+        <RegisterPatronModal
+          onClose={() => setShowRegisterPatron(false)}
+        />
       )}
     </div>
   );
