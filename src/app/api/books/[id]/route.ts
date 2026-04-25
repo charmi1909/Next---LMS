@@ -3,14 +3,11 @@ import connectDB from "@/app/lib/mongodb";
 import Book from "@/app/models/book";
 import { Types } from "mongoose";
 
-
-export async function GET(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+// ✅ GET
+export async function GET(req: NextRequest, context: any) {
   await connectDB();
 
-  const { id } = params;
+  const { id } = context.params;
 
   if (!Types.ObjectId.isValid(id)) {
     return NextResponse.json(
@@ -31,13 +28,11 @@ export async function GET(
   return NextResponse.json({ success: true, data: book }, { status: 200 });
 }
 
-export async function PUT(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+// ✅ PUT
+export async function PUT(req: NextRequest, context: any) {
   await connectDB();
 
-  const { id } = params;
+  const { id } = context.params;
 
   if (!Types.ObjectId.isValid(id)) {
     return NextResponse.json(
@@ -60,17 +55,17 @@ export async function PUT(
     );
   }
 
-  return NextResponse.json({ success: true, data: updatedBook }, { status: 200 });
+  return NextResponse.json(
+    { success: true, data: updatedBook },
+    { status: 200 }
+  );
 }
 
-
-export async function DELETE(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+// ✅ DELETE
+export async function DELETE(req: NextRequest, context: any) {
   await connectDB();
 
-  const { id } = params;
+  const { id } = context.params;
 
   if (!Types.ObjectId.isValid(id)) {
     return NextResponse.json(

@@ -3,19 +3,32 @@ import connectDB from '@/app/lib/mongodb';
 import Borrow from '@/app/models/borrow';
 import Hold from '@/app/models/hold';
 import Notification from '@/app/models/notification';
+import { Types } from 'mongoose';
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, context: any) {
   await connectDB();
 
   try {
-    const { id } = params;
+    const { id } = context.params;
 
-    const borrow = await Borrow.findById(id).populate('bookId');
-    if (!borrow || borrow.returned) {
-      return NextResponse.json({ success: false, message: 'Invalid borrow record' }, { status: 404 });
+    // 🔒 Validate ID
+    if (!Types.ObjectId.isValid(id)) {
+      return NextResponse.json(
+        { success: false, message: 'Invalid borrow ID' },
+        { status: 400 }
+      );
     }
 
-    const book = borrow.bookId;
+    const borrow = await Borrow.findById(id).populate('bookId');
+
+    if (!borrow || borrow.returned) {
+      return NextResponse.json(
+        { success: false, message: 'Invalid borrow record' },
+        { status: 404 }
+      );
+    }
+
+    const book: any = borrow.bookId;
 
     // ✅ Update borrow record
     borrow.returned = true;
@@ -24,9 +37,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     // ✅ Update book availability
     book.availableCopies += 1;
-    book.isAvailable = true; // <-- THIS LINE FIXES YOUR ISSUE
+    book.isAvailable = true;
     await book.save();
 
+    // ✅ Notify user
     await Notification.create({
       userId: borrow.userId,
       bookId: book._id,
@@ -47,24 +61,32 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       nextHold.status = 'available';
       nextHold.availableAt = new Date();
       await nextHold.save();
-      const librarianActionKey = `librarian-action:inform-patron:${nextHold._id}`;
-      const existingActionNotification = await Notification.findOne({ dedupeKey: librarianActionKey });
 
-      if (!existingActionNotification) {
+      const dedupeKey = `librarian-action:inform-patron:${nextHold._id}`;
+
+      const exists = await Notification.findOne({ dedupeKey });
+
+      if (!exists) {
         await Notification.create({
           userId: nextHold.userId,
           bookId: book._id,
           message: `Hold available for "${book.title}".`,
           type: 'reservation_available',
           read: false,
-          dedupeKey: librarianActionKey,
+          dedupeKey,
         });
       }
     }
 
-    return NextResponse.json({ success: true, message: 'Book returned successfully' });
+    return NextResponse.json({
+      success: true,
+      message: 'Book returned successfully',
+    });
   } catch (error) {
     console.error(error);
-    return NextResponse.json({ success: false, message: 'Return failed' }, { status: 500 });
+    return NextResponse.json(
+      { success: false, message: 'Return failed' },
+      { status: 500 }
+    );
   }
 }

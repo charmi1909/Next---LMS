@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/app/lib/mongodb';
 import User from '@/app/models/user';
 import Borrow from '@/app/models/borrow';
@@ -14,14 +14,17 @@ interface LeanPatron {
   role: 'patron';
 }
 
+// ✅ GET
 export async function GET(
-  req: Request,
-  { params }: { params: { id: string } }
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
   await connectDB();
 
   try {
-    const patron = await User.findById(params.id)
+    const { id } = await params;
+
+    const patron = await User.findById(id)
       .select('-password')
       .lean<LeanPatron | null>();
 
@@ -48,7 +51,7 @@ export async function GET(
       currentBorrowed,
       borrowingHistory,
     });
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { error: 'Invalid ID or Server Error' },
       { status: 500 }
@@ -56,24 +59,30 @@ export async function GET(
   }
 }
 
+// ✅ PUT
 export async function PUT(
-  req: Request,
-  { params }: { params: { id: string } }
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
   await connectDB();
 
   try {
+    const { id } = await params;
     const body = await req.json();
-    const { name, email, phone, address, password } = body;
 
-    const updateData: Record<string, any> = { name, email, phone, address };
+    const updateData: Record<string, unknown> = {
+      name: body.name,
+      email: body.email,
+      phone: body.phone,
+      address: body.address,
+    };
 
-    if (password && password.trim() !== '') {
-      updateData.password = await bcrypt.hash(password, 10);
+    if (body.password && body.password.trim() !== '') {
+      updateData.password = await bcrypt.hash(body.password, 10);
     }
 
     const updatedPatron = await User.findByIdAndUpdate(
-      params.id,
+      id,
       { $set: updateData },
       { new: true }
     ).select('-password');
@@ -82,10 +91,12 @@ export async function PUT(
       return NextResponse.json({ error: 'Patron not found' }, { status: 404 });
     }
 
-    return NextResponse.json(updatedPatron, { status: 200 });
-  } catch (error: any) {
+    return NextResponse.json(updatedPatron);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Update failed';
+
     return NextResponse.json(
-      { error: error.message || 'Update failed' },
+      { error: message },
       { status: 500 }
     );
   }

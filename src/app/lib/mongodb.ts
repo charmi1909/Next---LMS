@@ -1,22 +1,38 @@
 import mongoose from "mongoose";
 
-const MONGODB_URI = process.env.MONGODB_URI!;
+const uri = process.env.MONGODB_URI;
 
-if (!MONGODB_URI) {
-  throw new Error("Please define MONGODB_URI in .env.local");
+if (!uri) {
+  throw new Error("❌ MONGODB_URI is missing in environment variables");
 }
 
-let cached = (global as any).mongoose || { conn: null, promise: null };
+// ✅ Now TypeScript knows this is a string
+const MONGODB_URI: string = uri;
+
+type MongooseCache = {
+  conn: typeof mongoose | null;
+  promise: Promise<typeof mongoose> | null;
+};
+
+const globalWithMongoose = global as typeof globalThis & {
+  mongoose?: MongooseCache;
+};
+
+let cached: MongooseCache = globalWithMongoose.mongoose || {
+  conn: null,
+  promise: null,
+};
 
 export async function connectDB() {
   if (cached.conn) return cached.conn;
 
   if (!cached.promise) {
-    cached.promise = mongoose.connect(MONGODB_URI).then((mongoose) => mongoose);
+    cached.promise = mongoose.connect(MONGODB_URI);
   }
 
   cached.conn = await cached.promise;
-  (global as any).mongoose = cached;
+  globalWithMongoose.mongoose = cached;
+
   return cached.conn;
 }
 

@@ -12,7 +12,7 @@ function normalizeRole(role?: string): string {
   return normalized;
 }
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, context: any) {
   try {
     await connectDB();
 
@@ -23,34 +23,44 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET) as { role?: string };
     const normalizedRole = normalizeRole(decoded.role);
+
     if (!['librarian', 'admin'].includes(normalizedRole)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const notificationId = params.id;
-    if (!Types.ObjectId.isValid(notificationId)) {
+    const { id } = context.params;
+
+    // ✅ Validate ID
+    if (!Types.ObjectId.isValid(id)) {
       return NextResponse.json({ error: 'Invalid notification id' }, { status: 400 });
     }
 
-    const sourceNotification = await Notification.findById(notificationId).populate('bookId', 'title');
+    const sourceNotification = await Notification.findById(id).populate('bookId', 'title');
+
     if (!sourceNotification) {
       return NextResponse.json({ error: 'Notification not found' }, { status: 404 });
     }
 
     const sourceDedupeKey = sourceNotification.dedupeKey || '';
+
     if (
       sourceNotification.type !== 'reservation_available' ||
       !sourceDedupeKey.startsWith(ACTION_KEY_PREFIX)
     ) {
-      return NextResponse.json({ error: 'Notification does not support patron informing' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Notification does not support patron informing' },
+        { status: 400 }
+      );
     }
 
     const holdId = sourceDedupeKey.slice(ACTION_KEY_PREFIX.length);
+
     if (!holdId) {
       return NextResponse.json({ error: 'Invalid hold reference' }, { status: 400 });
     }
 
     const patronNotificationKey = `hold-available:${holdId}`;
+
     const existingPatronNotification = await Notification.findOne({
       userId: sourceNotification.userId,
       dedupeKey: patronNotificationKey,
@@ -70,6 +80,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       });
     }
 
+    // ✅ Update source notification
     sourceNotification.read = true;
     sourceNotification.message = `Patron notified for hold "${bookTitle}".`;
     await sourceNotification.save();
@@ -78,8 +89,12 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       success: true,
       alreadyInformed: Boolean(existingPatronNotification),
     });
+
   } catch (error) {
     console.error('Inform patron error:', error);
-    return NextResponse.json({ error: 'Failed to inform patron' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Failed to inform patron' },
+      { status: 500 }
+    );
   }
 }

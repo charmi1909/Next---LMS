@@ -1,20 +1,27 @@
-import type { NextApiRequest, NextApiResponse } from 'next';
+import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/app/lib/mongodb';
 import Borrow from '@/app/models/borrow';
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+// ✅ GET patron history
+export async function GET(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   await connectDB();
-  const { id } = req.query;
 
-  if (req.method === 'GET') {
-    try {
-      const history = await Borrow.find({ patron: id })
-        .populate('book')
-        .sort({ borrowedAt: -1 });
+  const { id } = await params;
 
-      res.status(200).json(history);
-    } catch (error) {
-      res.status(500).json({ error: (error as Error).message });
-    }
+  try {
+    const history = await Borrow.find({ patron: id })
+      .populate('book')
+      .sort({ borrowedAt: -1 });
+
+    return NextResponse.json(history);
+  } catch (error) {
+    console.error(error);
+    return NextResponse.json(
+      { error: 'Failed to fetch history' },
+      { status: 500 }
+    );
   }
 }

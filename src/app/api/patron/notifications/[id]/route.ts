@@ -14,14 +14,20 @@ function getUserFromToken(req: NextRequest) {
   }
 }
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+// ✅ PATCH (mark as read)
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   await connectDB();
+
   const user = getUserFromToken(req);
   if (!user || user.role !== 'patron') {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const id = params.id;
+  const { id } = await params;
+
   if (!Types.ObjectId.isValid(id)) {
     return NextResponse.json({ error: 'Invalid ID' }, { status: 400 });
   }
@@ -39,19 +45,29 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   return NextResponse.json(updated);
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+// ✅ DELETE
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   await connectDB();
+
   const user = getUserFromToken(req);
   if (!user || user.role !== 'patron') {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const id = params.id;
+  const { id } = await params;
+
   if (!Types.ObjectId.isValid(id)) {
     return NextResponse.json({ error: 'Invalid ID' }, { status: 400 });
   }
 
-  const deleted = await Notification.findOneAndDelete({ _id: id, userId: user.id });
+  const deleted = await Notification.findOneAndDelete({
+    _id: id,
+    userId: user.id,
+  });
+
   if (!deleted) {
     return NextResponse.json({ error: 'Notification not found' }, { status: 404 });
   }
