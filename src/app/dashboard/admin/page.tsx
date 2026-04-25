@@ -2,7 +2,6 @@
 
 import React, { useEffect, useState } from 'react';
 import { BookCopy, Users, UserCog, TriangleAlert } from 'lucide-react';
-import './admin.css';
 
 export default function AdminDashboardOverviewPage() {
   const [stats, setStats] = useState({
@@ -11,8 +10,37 @@ export default function AdminDashboardOverviewPage() {
     totalLibrarians: 0,
     overdueBooks: 0,
   });
-  const [loading, setLoading] = useState(true);
 
+  const [adminName, setAdminName] = useState('Admin');
+  const [loading, setLoading] = useState(true);
+  const [userLoading, setUserLoading] = useState(true);
+
+  // ✅ Fetch admin name
+  useEffect(() => {
+    const fetchAdmin = async () => {
+      try {
+        const res = await fetch('/api/auth/me', {
+          credentials: 'include',
+        });
+
+        const data = await res.json();
+
+        if (data.success && data.user?.name) {
+          setAdminName(data.user.name);
+        } else {
+          setAdminName('Admin');
+        }
+      } catch {
+        setAdminName('Admin');
+      } finally {
+        setUserLoading(false);
+      }
+    };
+
+    fetchAdmin();
+  }, []);
+
+  // ✅ Fetch dashboard stats
   useEffect(() => {
     const fetchStats = async () => {
       try {
@@ -30,17 +58,43 @@ export default function AdminDashboardOverviewPage() {
   }, []);
 
   const cards = [
-    { label: 'Total Books', value: stats.totalBooks, icon: <BookCopy size={22} />, tone: 'tone-blue' },
-    { label: 'Registered Patrons', value: stats.totalPatrons, icon: <Users size={22} />, tone: 'tone-purple' },
-    { label: 'Active Librarians', value: stats.totalLibrarians, icon: <UserCog size={22} />, tone: 'tone-emerald' },
-    { label: 'Overdue Books', value: stats.overdueBooks, icon: <TriangleAlert size={22} />, tone: 'tone-amber' },
+    {
+      label: 'Total Books',
+      value: stats.totalBooks,
+      icon: <BookCopy size={22} />,
+      tone: 'tone-blue',
+    },
+    {
+      label: 'Registered Patrons',
+      value: stats.totalPatrons,
+      icon: <Users size={22} />,
+      tone: 'tone-purple',
+    },
+    {
+      label: 'Active Librarians',
+      value: stats.totalLibrarians,
+      icon: <UserCog size={22} />,
+      tone: 'tone-emerald',
+    },
+    {
+      label: 'Overdue Books',
+      value: stats.overdueBooks,
+      icon: <TriangleAlert size={22} />,
+      tone: 'tone-amber',
+    },
   ];
 
   return (
     <div className="dashboard-page-container">
       <div className="page-header">
-        <h1 className="dashboard-title">Admin Dashboard</h1>
-        <p className="page-subtitle">Monitor books, patrons, librarians, and overdue activity in one place.</p>
+        {/* ✅ Admin Welcome */}
+        <h1 className="dashboard-title">
+          {userLoading ? 'Loading...' : `Welcome, ${adminName}!`}
+        </h1>
+
+        <p className="page-subtitle">
+          Monitor books, patrons, librarians, and overdue activity in one place.
+        </p>
       </div>
 
       {loading ? (
