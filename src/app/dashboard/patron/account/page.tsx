@@ -15,6 +15,14 @@ interface BorrowRecord {
   fine?: number;
 }
 
+interface CollectedFineRecord {
+  fineId: string;
+  amount: number;
+  collectedAt: string;
+  bookTitle: string;
+  reason: string;
+}
+
 const MessageModal: React.FC<{
   message: string | null;
   type: 'success' | 'error' | 'info';
@@ -62,6 +70,7 @@ const MessageModal: React.FC<{
 export default function AccountManagementPage() {
   const [records, setRecords] = useState<BorrowRecord[]>([]);
   const [totalFines, setTotalFines] = useState<number>(0);
+  const [collectedFineHistory, setCollectedFineHistory] = useState<CollectedFineRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -122,6 +131,7 @@ export default function AccountManagementPage() {
 
       if (finesRes.ok && finesData.success) {
         setTotalFines(finesData.totalFines || 0);
+        setCollectedFineHistory(finesData.collected || []);
       } else {
         throw new Error(finesData.message || 'Failed to fetch fines');
       }
@@ -255,7 +265,7 @@ export default function AccountManagementPage() {
 
             {/* Outstanding Fines */}
             <section className="account-section-card">
-              <h2 className="account-section-heading">Outstanding Fines</h2>
+              <h2 className="account-section-heading">Outstanding Fines & Overdue Management</h2>
               {totalFines > 0 ? (
                 <div>
                   <p className="fine-text"><strong>Total Outstanding Fines:</strong> ₹{totalFines.toFixed(2)}</p>
@@ -263,6 +273,24 @@ export default function AccountManagementPage() {
                 </div>
               ) : (
                 <p className="no-items-message">No outstanding fines.</p>
+              )}
+            </section>
+
+            <section className="account-section-card">
+              <h2 className="account-section-heading">Collected Fines History</h2>
+              {collectedFineHistory.length === 0 ? (
+                <p className="no-items-message">No fine collections yet.</p>
+              ) : (
+                <ul className="borrow-records-list">
+                  {collectedFineHistory.map((fine) => (
+                    <li key={fine.fineId} className="borrow-record-item">
+                      <p className="item-title"><strong>Book:</strong> {fine.bookTitle}</p>
+                      <p className="item-date"><strong>Amount Collected:</strong> ₹{fine.amount.toFixed(2)}</p>
+                      <p className="item-date"><strong>Collected At:</strong> {new Date(fine.collectedAt).toLocaleString()}</p>
+                      <p className="item-date"><strong>Reason:</strong> {fine.reason}</p>
+                    </li>
+                  ))}
+                </ul>
               )}
             </section>
 

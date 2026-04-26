@@ -16,6 +16,7 @@ const BorrowSchema = new Schema({
   finePaid: { type: Boolean, default: false },
   finePaidAt: { type: Date, default: null },
   fineCollected: { type: Boolean, default: false },
+  fineCollectedAt: { type: Date, default: null },
   reservationId: { type: Schema.Types.ObjectId, ref: 'Hold', default: null },
 }, {
   timestamps: true

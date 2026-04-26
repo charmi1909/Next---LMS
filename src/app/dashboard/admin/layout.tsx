@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Moon, Sun, LogOut, Home, Users, Settings, BarChart, Bell, BookOpen, Menu, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Moon, Sun, LogOut, Home, Users, Settings, BarChart, Bell, BookOpen, Menu, ChevronLeft, ChevronRight, DollarSign } from 'lucide-react';
 import { jwtDecode } from 'jwt-decode';
 import './admin.css';
 
@@ -148,13 +148,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 </Link>
               </li>
               <li>
-                <Link
-                  href="/dashboard/admin/notifications"
-                  className={`sidebar-link ${pathname.startsWith('/dashboard/admin/notifications') ? 'active' : ''}`}
-                  onClick={handleLinkClick}
-                >
+                <Link href="/dashboard/admin/notifications" className={`sidebar-link ${pathname.startsWith('/dashboard/admin/notifications') ? 'active' : ''}`} onClick={handleLinkClick}>
                   <span className="sidebar-icon"><Bell size={24} /></span>
                   <span className="sidebar-text">Notifications</span>
+                </Link>
+              </li>
+              <li>
+                <Link href="/dashboard/admin/fines" className={`sidebar-link ${pathname.startsWith('/dashboard/admin/fines') ? 'active' : ''}`} onClick={handleLinkClick}>
+                  <span className="sidebar-icon"><DollarSign size={24} /></span>
+                  <span className="sidebar-text">Fines</span>
                 </Link>
               </li>
             </ul>

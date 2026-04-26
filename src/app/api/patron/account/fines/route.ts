@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import connectDB from '@/app/lib/mongodb';
 import Borrow from '@/app/models/borrow';
 import mongoose from 'mongoose';
+import Fine from '@/app/models/fine';
 
 export async function GET(req: NextRequest) {
   try {
@@ -21,16 +22,15 @@ export async function GET(req: NextRequest) {
 
     const userId = new mongoose.Types.ObjectId(decoded.id);
 
-    // Sum fines (assumes Borrow.fine stores current fine amounts)
+    // Sum only outstanding fines.
     const agg = await Borrow.aggregate([
-      { $match: { userId } },
+      { $match: { userId, fineCollected: { $ne: true }, fine: { $gt: 0 } } },
       { $group: { _id: null, totalFines: { $sum: { $ifNull: ['$fine', 0] } } } }
     ]);
 
     const totalFines = agg.length > 0 ? agg[0].totalFines : 0;
 
-    // Also return detailed overdue records (optional)
-    const overdueDetails = await Borrow.find({ userId, fine: { $gt: 0 } })
+    const overdueDetails = await Borrow.find({ userId, fine: { $gt: 0 }, fineCollected: { $ne: true } })
       .populate({ path: 'bookId', select: 'title author' })
       .lean();
 
@@ -43,7 +43,21 @@ export async function GET(req: NextRequest) {
       returned: !!d.returned,
     }));
 
-    return NextResponse.json({ success: true, totalFines, details });
+    const collectedHistory = await Fine.find({ userId })
+      .populate({ path: 'bookId', select: 'title author' })
+      .sort({ collectedAt: -1 })
+      .lean();
+
+    const collected = collectedHistory.map((item: any) => ({
+      fineId: item._id,
+      borrowId: item.borrowId || null,
+      amount: item.amount || 0,
+      collectedAt: item.collectedAt,
+      bookTitle: item.bookId?.title || 'Unknown',
+      reason: item.reason || 'Overdue Fine',
+    }));
+
+    return NextResponse.json({ success: true, totalFines, details, collected });
   } catch (err: any) {
     console.error('API /fines error:', err);
     return NextResponse.json({ success: false, message: 'Internal server error' }, { status: 500 });

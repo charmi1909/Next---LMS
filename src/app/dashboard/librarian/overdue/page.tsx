@@ -36,10 +36,26 @@ export default function OverduePage() {
 
   const fetchOverdueItems = async () => {
     try {
-      const res = await fetch('/api/overdue');
-      if (!res.ok) throw new Error('Failed to fetch overdue items');
-      const data = await res.json();
-      setOverdueItems(data);
+      const [overdueRes, historyRes] = await Promise.all([
+        fetch('/api/overdue'),
+        fetch('/api/admin/fines'),
+      ]);
+      if (!overdueRes.ok) throw new Error('Failed to fetch overdue items');
+      const overdueData = await overdueRes.json();
+      setOverdueItems(overdueData);
+
+      if (historyRes.ok) {
+        const historyData = await historyRes.json();
+        const normalized = (historyData.fines || []).map((f: any) => ({
+          borrowerName: f.patron?.name || 'Unknown',
+          borrowerId: f.patron?.email || 'N/A',
+          bookTitle: f.book?.title || 'Unknown',
+          bookId: f.book?.isbn || 'N/A',
+          fineAmount: f.amount || 0,
+          collectedAt: f.collectedAt,
+        }));
+        setCollectedFines(normalized);
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -61,7 +77,7 @@ export default function OverduePage() {
 
         // Add to collected fines list
         if (data.collectedFine) {
-          setCollectedFines((prev) => [...prev, data.collectedFine]);
+          setCollectedFines((prev) => [data.collectedFine, ...prev]);
         }
       } else {
         setMessage(data.message || 'Error collecting fine.');
@@ -144,7 +160,7 @@ export default function OverduePage() {
       {/* Collected Fines Section */}
       {collectedFines.length > 0 && (
         <div className="collected-fines mt-8">
-          <h2 className="text-xl font-semibold mb-3">Recently Collected Fines</h2>
+          <h2 className="text-xl font-semibold mb-3">Collected Fines History</h2>
           <table className="min-w-full border border-gray-300">
             <thead className="bg-gray-100">
               <tr>

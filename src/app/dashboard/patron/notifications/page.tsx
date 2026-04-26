@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 
-type Category = 'all' | 'unread' | 'availability' | 'general';
+type Category = 'all' | 'unread' | 'availability' | 'fine' | 'general';
 
 type PatronNotification = {
   _id: string;
@@ -60,11 +60,13 @@ export default function PatronNotificationsPage() {
     if (type === 'hold_available') return 'Hold Available';
     if (type === 'due_soon') return 'Due Date Reminder';
     if (type === 'warning') return 'Important Update';
+    if (type === 'overdue_fine') return 'Fine Update';
     return 'Notification';
   };
 
   const getCategory = (type: string): Exclude<Category, 'all' | 'unread'> => {
     if (type === 'hold_available') return 'availability';
+    if (type === 'overdue_fine') return 'fine';
     return 'general';
   };
 
@@ -73,6 +75,7 @@ export default function PatronNotificationsPage() {
     { id: 'all', label: 'All' },
     { id: 'unread', label: 'Unread' },
     { id: 'availability', label: 'Availability' },
+    { id: 'fine', label: 'Fine Updates' },
     { id: 'general', label: 'General' },
   ];
   const filteredItems = useMemo(() => {

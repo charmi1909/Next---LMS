@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import connectDB from '@/app/lib/mongodb';
 import Borrow from '@/app/models/borrow';
+import LoanConfig from '@/app/models/LoanConfig';
 
 export async function GET() {
   await connectDB();
@@ -8,6 +9,9 @@ export async function GET() {
   const today = new Date();
 
   try {
+    const config = await LoanConfig.findOne();
+    const fineRate = config?.fineRate || 5;
+
     const overdueDocs = await Borrow.find({
       dueDate: { $lt: today },
       returned: false,
@@ -15,7 +19,15 @@ export async function GET() {
       .populate('bookId')
       .populate('userId');
 
-    const overdueItems = overdueDocs.map((borrow) => ({
+    const overdueItems = overdueDocs.map((borrow) => {
+      const overdueDays = Math.max(
+        0,
+        Math.ceil((today.getTime() - new Date(borrow.dueDate).getTime()) / (1000 * 60 * 60 * 24))
+      );
+      const fineAmount = overdueDays * fineRate;
+      borrow.fine = fineAmount;
+
+      return {
       _id: borrow._id.toString(),
       bookId: borrow.bookId?._id.toString() || null,
       book: {
@@ -28,9 +40,11 @@ export async function GET() {
         email: borrow.userId?.email || 'N/A',
       },
       dueDate: borrow.dueDate,
-      fine: borrow.fine || 0,
+      fine: fineAmount,
       fineCollected: borrow.fineCollected || false,
-    }));
+      };
+    });
+    await Promise.all(overdueDocs.map((borrow) => borrow.save()));
 
     return NextResponse.json(overdueItems);
   } catch (error) {

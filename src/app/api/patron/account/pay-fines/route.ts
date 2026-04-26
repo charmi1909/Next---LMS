@@ -4,7 +4,8 @@ import connectDB from '@/app/lib/mongodb';
 import Borrow from '@/app/models/borrow';
 import Book from '@/app/models/book';
 import mongoose from 'mongoose';
-
+import Fine from '@/app/models/fine';
+import Notification from '@/app/models/notification';
 export async function POST(req: NextRequest) {
   try {
     await connectDB();
@@ -38,9 +39,13 @@ export async function POST(req: NextRequest) {
     const updates: Promise<any>[] = [];
 
     for (const b of borrowsWithFines) {
-      totalCollected += (b.fine || 0);
+      const amountPaid = b.fine || 0;
+      totalCollected += amountPaid;
       b.fine = 0;
+      b.finePaid = true;
       b.finePaidAt = new Date();
+      b.fineCollected = true;
+      b.fineCollectedAt = new Date();
       b.returned = true;
       b.returnedAt = new Date();
       b.status = 'returned';
@@ -48,11 +53,30 @@ export async function POST(req: NextRequest) {
 
       // update associated Book document (set available / status)
       updates.push(Book.findByIdAndUpdate(b.bookId, { $set: { status: 'available', available: true } }));
+      
+      // create Fine history record
+      updates.push(Fine.create({
+          userId: b.userId,
+          bookId: b.bookId,
+          borrowId: b._id,
+          amount: amountPaid,
+          collectedBy: userId, // Patron self-paid
+          collectedAt: new Date(),
+          status: 'paid'
+      }));
+
+      updates.push(Notification.create({
+        userId: b.userId,
+        bookId: b.bookId,
+        borrowId: b._id,
+        message: `Fine payment received for this book. Amount: Rs ${amountPaid.toFixed(2)}.`,
+        type: 'overdue_fine',
+        read: false,
+        dedupeKey: `fine-self-paid:${b._id}:${Date.now()}`,
+      }));
     }
 
     await Promise.all(updates);
-
-    // Optionally: create a FineHistory record here if you have that model
 
     return NextResponse.json({
       success: true,
