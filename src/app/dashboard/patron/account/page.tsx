@@ -23,11 +23,18 @@ interface CollectedFineRecord {
   reason: string;
 }
 
+interface PaidBookRecord {
+  borrowId: string;
+  bookTitle: string;
+  amountPaid: number;
+}
+
 const MessageModal: React.FC<{
   message: string | null;
   type: 'success' | 'error' | 'info';
+  paidBooks?: PaidBookRecord[];
   onClose: () => void;
-}> = ({ message, type, onClose }) => {
+}> = ({ message, type, paidBooks = [], onClose }) => {
   if (!message) return null;
 
   let contentBgClass = '';
@@ -46,7 +53,11 @@ const MessageModal: React.FC<{
 
   return (
     <div className="message-modal-overlay">
-      <div className={`message-modal-content ${contentBgClass}`}>
+      <div
+        className={`message-modal-content ${contentBgClass} ${
+          type === 'success' ? 'border-2 border-green-200 shadow-xl shadow-green-100' : ''
+        }`}
+      >
         <div className="message-modal-header">
           <h3 className={`message-modal-title ${headerColorClass}`}>
             {type === 'success' ? 'Success!' : type === 'error' ? 'Error!' : 'Info'}
@@ -54,6 +65,18 @@ const MessageModal: React.FC<{
           <button onClick={onClose} className="message-modal-close-btn">&times;</button>
         </div>
         <p className="message-modal-body">{message}</p>
+        {type === 'success' && paidBooks.length > 0 && (
+          <div className="mt-4 rounded-lg border border-green-200 bg-green-50 p-3">
+            <p className="text-sm font-semibold text-green-800 mb-2">Paid Fine Details</p>
+            <ul className="space-y-2">
+              {paidBooks.map((item) => (
+                <li key={item.borrowId} className="text-sm text-green-900">
+                  <span className="font-medium">{item.bookTitle}</span> - Rs {item.amountPaid.toFixed(2)}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         <div className="message-modal-actions">
           <button
             onClick={onClose}
@@ -75,13 +98,17 @@ export default function AccountManagementPage() {
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [messageModal, setMessageModal] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [lastPaidBooks, setLastPaidBooks] = useState<PaidBookRecord[]>([]);
   const [analytics, setAnalytics] = useState<{
     summary: { totalBorrowed: number; currentlyBorrowed: number };
     monthlyBorrowTrend: { label: string; count: number }[];
     topAuthors: { author: string; count: number }[];
   } | null>(null);
 
-  const closeMessageModal = () => setMessageModal(null);
+  const closeMessageModal = () => {
+    setMessageModal(null);
+    setLastPaidBooks([]);
+  };
   const showToast = (message: string, type: 'success' | 'error') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
@@ -167,8 +194,13 @@ export default function AccountManagementPage() {
 
       const data = await res.json();
       if (res.ok && data.success) {
-        showToast('Fines paid successfully. Overdue books marked as returned.', 'success');
-        setMessageModal({ text: 'Fines paid successfully!', type: 'success' });
+        const paidBooks = Array.isArray(data.paidBooks) ? data.paidBooks : [];
+        setLastPaidBooks(paidBooks);
+        showToast(`Fines paid successfully. Rs ${(data.collectedAmount || 0).toFixed(2)} paid.`, 'success');
+        setMessageModal({
+          text: `Payment successful! Total paid: Rs ${(data.collectedAmount || 0).toFixed(2)}.`,
+          type: 'success',
+        });
         fetchAccountData(); // refresh account data
       } else {
         throw new Error(data.message || 'Error paying fines');
@@ -249,15 +281,29 @@ export default function AccountManagementPage() {
               ) : (
                 <ul className="borrow-records-list">
                   {records.map((record) => (
-                    <li key={record._id} className="borrow-record-item">
-                      <p className="item-title"><strong>Title:</strong> {record.bookId?.title || 'N/A'}</p>
-                      <p className="item-author"><strong>Author:</strong> {record.bookId?.author || 'N/A'}</p>
-                      <p className="item-date"><strong>Borrowed At:</strong> {new Date(record.borrowedAt).toLocaleDateString()}</p>
-                      <p className="item-date"><strong>Returned At:</strong> {record.returnedAt ? new Date(record.returnedAt).toLocaleDateString() : 'Not returned'}</p>
-                      {record.fine && record.fine > 0 && (
-                        <p className="fine-text"><strong>Fine:</strong> ₹{record.fine.toFixed(2)}</p>
-                      )}
-                    </li>
+                  <li key={record._id} className="borrow-record-item">
+  <p className="item-title">
+    <strong>Title:</strong> {record.bookId?.title || 'N/A'}
+  </p>
+
+  <p className="item-author">
+    <strong>Author:</strong> {record.bookId?.author || 'N/A'}
+  </p>
+
+  <p className="item-date">
+    <strong>Borrowed At:</strong> {new Date(record.borrowedAt).toLocaleDateString()}
+  </p>
+
+  <p className="item-date">
+    <strong>Returned At:</strong> {record.returnedAt 
+      ? new Date(record.returnedAt).toLocaleDateString() 
+      : 'Not returned'}
+  </p>
+
+  <p className="fine-text">
+    <strong>Fine:</strong> ₹{(record.fine ?? 0).toFixed(2)}
+  </p>
+</li>
                   ))}
                 </ul>
               )}
@@ -343,6 +389,7 @@ export default function AccountManagementPage() {
         <MessageModal
           message={messageModal?.text || null}
           type={messageModal?.type || 'info'}
+          paidBooks={messageModal?.type === 'success' ? lastPaidBooks : []}
           onClose={closeMessageModal}
         />
       </div>

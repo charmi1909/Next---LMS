@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
       userId,
       fine: { $gt: 0 },
       returned: false,
-    });
+    }).populate({ path: 'bookId', select: 'title' });
 
     if (!borrowsWithFines.length) {
       return NextResponse.json({ success: false, message: 'No outstanding fines to pay' }, { status: 400 });
@@ -36,6 +36,7 @@ export async function POST(req: NextRequest) {
 
     // Sum total and update each record, also update Book to available
     let totalCollected = 0;
+    const paidBooks: { borrowId: string; bookTitle: string; amountPaid: number }[] = [];
     const updates: Promise<any>[] = [];
 
     for (const b of borrowsWithFines) {
@@ -51,13 +52,18 @@ export async function POST(req: NextRequest) {
       b.status = 'returned';
       updates.push(b.save());
 
+      const resolvedBookId =
+        typeof b.bookId === 'object' && b.bookId !== null && '_id' in b.bookId
+          ? (b.bookId as any)._id
+          : b.bookId;
+
       // update associated Book document (set available / status)
-      updates.push(Book.findByIdAndUpdate(b.bookId, { $set: { status: 'available', available: true } }));
+      updates.push(Book.findByIdAndUpdate(resolvedBookId, { $set: { status: 'available', available: true } }));
       
       // create Fine history record
       updates.push(Fine.create({
           userId: b.userId,
-          bookId: b.bookId,
+          bookId: resolvedBookId,
           borrowId: b._id,
           amount: amountPaid,
           collectedBy: userId, // Patron self-paid
@@ -65,15 +71,26 @@ export async function POST(req: NextRequest) {
           status: 'paid'
       }));
 
+      const bookTitle =
+        typeof b.bookId === 'object' && b.bookId !== null && 'title' in b.bookId
+          ? (b.bookId as any).title || 'Unknown'
+          : 'Unknown';
+
       updates.push(Notification.create({
         userId: b.userId,
-        bookId: b.bookId,
+        bookId: resolvedBookId,
         borrowId: b._id,
-        message: `Fine payment received for this book. Amount: Rs ${amountPaid.toFixed(2)}.`,
+        message: `Fine payment received for "${bookTitle}". Amount: Rs ${amountPaid.toFixed(2)}.`,
         type: 'overdue_fine',
         read: false,
         dedupeKey: `fine-self-paid:${b._id}:${Date.now()}`,
       }));
+
+      paidBooks.push({
+        borrowId: String(b._id),
+        bookTitle,
+        amountPaid,
+      });
     }
 
     await Promise.all(updates);
@@ -82,6 +99,7 @@ export async function POST(req: NextRequest) {
       success: true,
       message: `Fines paid successfully. ₹${totalCollected.toFixed(2)} collected.`,
       collectedAmount: totalCollected,
+      paidBooks,
     });
   } catch (err: any) {
     console.error('API /pay-fines error:', err);

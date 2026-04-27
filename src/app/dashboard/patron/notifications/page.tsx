@@ -70,6 +70,11 @@ export default function PatronNotificationsPage() {
     return 'general';
   };
 
+  const extractBookTitle = (message: string) => {
+    const match = message.match(/"([^"]+)"/);
+    return match?.[1] || null;
+  };
+
   const unreadCount = useMemo(() => notifications.filter((item) => !item.read).length, [notifications]);
   const filterTabs: { id: Category; label: string }[] = [
     { id: 'all', label: 'All' },
@@ -123,11 +128,19 @@ export default function PatronNotificationsPage() {
       ) : (
         filteredItems.map((n) => {
           const category = getCategory(n.type);
+          const bookTitle = extractBookTitle(n.message);
           return (
             <div key={n._id} className="notification-card librarian-notification-card">
               <div>
                 <p className="font-semibold text-gray-800">{getPatronTitle(n.type)}</p>
-                <p className="notification-message">{n.message}</p>
+                {bookTitle && (
+                  <p className="notification-message font-medium text-gray-800">
+                    Book: {bookTitle}
+                  </p>
+                )}
+                <p className="notification-message">
+                  {n.message.replace(/\s*for this book/i, '').trim()}
+                </p>
                 <p className="notification-time">
                   {formatDistanceToNow(new Date(n.createdAt), { addSuffix: true })}
                 </p>
